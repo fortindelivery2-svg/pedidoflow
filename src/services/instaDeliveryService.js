@@ -113,6 +113,48 @@ export const instaDeliveryPaymentMap = {
   99: 'Outras',
 };
 
+export const validateInstaDeliveryPayload = (payload) => {
+  const errors = [];
+  const warnings = [];
+
+  if (!payload || typeof payload !== 'object') {
+    return { errors: ['Payload vazio ou invalido.'], warnings };
+  }
+
+  const requiredFields = [
+    'order_id',
+    'status',
+    'origem',
+    'store_id',
+    'nome_destinatario',
+    'codigo_item',
+    'quantidade_item',
+    'descricao_item',
+  ];
+
+  requiredFields.forEach((field) => {
+    if (payload[field] == null || payload[field] === '') {
+      errors.push(`Campo obrigatorio ausente: ${field}.`);
+    }
+  });
+
+  const items = asArray(payload.codigo_item);
+  const quantities = asArray(payload.quantidade_item);
+  const descriptions = asArray(payload.descricao_item);
+
+  if (items.length === 0) {
+    errors.push('Nenhum item informado em codigo_item.');
+  }
+  if (quantities.length && items.length && quantities.length !== items.length) {
+    warnings.push('quantidade_item tem tamanho diferente de codigo_item.');
+  }
+  if (descriptions.length && items.length && descriptions.length !== items.length) {
+    warnings.push('descricao_item tem tamanho diferente de codigo_item.');
+  }
+
+  return { errors, warnings };
+};
+
 const buildPaymentLabel = (codes) => {
   const labels = asArray(codes)
     .map((code) => Number(code))
@@ -240,6 +282,8 @@ export const mapInstaDeliveryPayload = (payload, products = []) => {
 
   const payloadForOrder = {
     origem: 'instadelivery',
+    external_id: payload.order_id,
+    external_source: 'instadelivery',
     persistClient: true,
     cliente: {
       nome: clienteNome,
