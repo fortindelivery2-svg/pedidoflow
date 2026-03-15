@@ -9,7 +9,6 @@ import {
   Package,
   Palette,
   ShoppingCart,
-  Truck,
   UserCheck,
   Users,
 } from 'lucide-react';
@@ -26,6 +25,5 @@ export const sidebarMenuItems = [
   { path: '/dashboard/relatorios', label: 'Relatorios', icon: BarChart3 },
   { path: '/dashboard/relatorios/historico-vendas', label: 'Historico de Vendas', icon: History },
   { path: '/dashboard/chatbot', label: 'CHATBOT', icon: Bot },
-  { path: '/dashboard/painel-delivery', label: 'Painel de Delivery', icon: Truck },
   { path: '/dashboard/cores-layout', label: 'Mudar as cores do layout', icon: Palette },
 ];

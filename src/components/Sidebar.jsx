@@ -12,7 +12,6 @@ import {
   Palette,
   ShoppingCart,
   Store,
-  Truck,
   UserCheck,
   Users,
 } from 'lucide-react';
@@ -32,7 +31,6 @@ const Sidebar = () => {
     { path: '/dashboard/relatorios', label: 'Relatórios', icon: BarChart3 },
     { path: '/dashboard/relatorios/historico-vendas', label: 'Histórico de Vendas', icon: History },
     { path: '/dashboard/chatbot', label: 'CHATBOT', icon: Bot },
-    { path: '/dashboard/painel-delivery', label: 'Painel de Delivery', icon: Truck },
     { path: '/dashboard/cores-layout', label: 'Mudar as cores do layout', icon: Palette },
   ];
 

@@ -17,7 +17,6 @@ import ContasAReceberPage from '@/pages/ContasAReceberPage';
 import RelatoriosPage from '@/pages/RelatoriosPage';
 import HistoricoVendasPage from '@/pages/HistoricoVendasPage';
 import ChatbotApiPage from '@/pages/ChatbotApiPage';
-import PainelDeliveryPage from '@/pages/PainelDeliveryPage';
 import TemaLayoutPage from '@/pages/TemaLayoutPage';
 
 // Import new components to ensure they are available in build
@@ -54,7 +53,6 @@ function App() {
             <Route path="relatorios" element={<RelatoriosPage />} />
             <Route path="relatorios/historico-vendas" element={<HistoricoVendasPage />} />
             <Route path="chatbot" element={<ChatbotApiPage />} />
-            <Route path="painel-delivery" element={<PainelDeliveryPage />} />
             <Route path="cores-layout" element={<TemaLayoutPage />} />
           </Route>
 
