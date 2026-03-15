@@ -23,6 +23,9 @@ const defaultSettings = {
     corPrimaria: '#ff4d42',
     corSecundaria: '#4b2e1f',
     logoUrl: '',
+    instaBusinessId: '',
+    instaWebhookUrl: '',
+    instaWebhookUrl2: '',
   },
   lastOrderNumber: 1000,
 };
@@ -515,7 +518,9 @@ export const buildDashboardMetrics = ({ orders = [], products = [], people = [],
   return {
     pedidosHoje: ordersToday.length,
     valorHoje: ordersToday.reduce((sum, order) => sum + Number(order.total || 0), 0),
-    emPreparacao: orders.filter((order) => order.status === 'Em preparação').length,
+    emPreparacao: orders.filter(
+      (order) => order.status === 'Em preparação' || order.status === 'Em preparacao',
+    ).length,
     entregues: orders.filter((order) => order.status === 'Entregue').length,
     produtosPublicados: products.filter((item) => {
       const visibility = getProductVisibility(settings, item.id);
@@ -726,6 +731,7 @@ export const getOrderStatusTone = (status) => {
     case 'Novo pedido':
       return 'bg-sky-500/15 text-sky-300 border-sky-500/30';
     case 'Em preparação':
+    case 'Em preparacao':
       return 'bg-amber-500/15 text-amber-300 border-amber-500/30';
     case 'Saiu para entrega':
       return 'bg-violet-500/15 text-violet-300 border-violet-500/30';
