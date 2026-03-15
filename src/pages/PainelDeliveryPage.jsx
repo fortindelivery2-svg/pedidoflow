@@ -13,6 +13,7 @@ import {
   instaDeliveryPaymentMap,
   instaDeliveryStatusMap,
   mapInstaDeliveryPayload,
+  sanitizeInstaDeliveryJson,
 } from '@/services/instaDeliveryService';
 
 const samplePayload = JSON.stringify(
@@ -73,7 +74,7 @@ const PainelDeliveryPage = () => {
 
   const suggestedWebhook = useMemo(() => {
     if (typeof window === 'undefined') return '';
-    return `${window.location.origin}/api/webhooks/instadelivery`;
+    return `${window.location.origin}/.netlify/functions/instadelivery`;
   }, []);
 
   useEffect(() => {
@@ -127,7 +128,8 @@ const PainelDeliveryPage = () => {
     setIsImporting(true);
     setImportResult(null);
     try {
-      const parsed = JSON.parse(payloadText);
+      const cleaned = sanitizeInstaDeliveryJson(payloadText);
+      const parsed = JSON.parse(cleaned);
       const mapped = mapInstaDeliveryPayload(parsed, snapshot.products);
       let order = await createDeliveryOrder(mapped.payload);
       if (mapped.status && mapped.status !== 'Novo pedido') {
