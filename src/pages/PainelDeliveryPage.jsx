@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { AlertTriangle, CheckCircle2, Copy, Link2, Package, ShoppingBag } from 'lucide-react';
 import ModuleShell from '@/components/delivery/ModuleShell';
@@ -14,7 +14,6 @@ import {
   instaDeliveryStatusMap,
   mapInstaDeliveryPayload,
   sanitizeInstaDeliveryJson,
-  validateInstaDeliveryPayload,
 } from '@/services/instaDeliveryService';
 
 const samplePayload = JSON.stringify(
@@ -72,21 +71,11 @@ const PainelDeliveryPage = () => {
   const [payloadText, setPayloadText] = useState(samplePayload);
   const [importResult, setImportResult] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
-  const [autoSyncEnabled, setAutoSyncEnabled] = useState(true);
-  const [autoSyncStatus, setAutoSyncStatus] = useState('');
-  const [lastSyncAt, setLastSyncAt] = useState(() => {
-    if (typeof window === 'undefined') return '';
-    return window.localStorage.getItem('insta_last_sync_at') || '';
-  });
-  const syncRef = useRef(false);
 
   const suggestedWebhook = useMemo(() => {
     if (typeof window === 'undefined') return '';
     return `${window.location.origin}/.netlify/functions/instadelivery`;
   }, []);
-
-  const webhookEndpoint = suggestedWebhook;
-  const storeId = String(configDraft.businessId || appInfo.instaBusinessId || '').trim();
 
   useEffect(() => {
     setConfigDraft({
@@ -141,15 +130,6 @@ const PainelDeliveryPage = () => {
     try {
       const cleaned = sanitizeInstaDeliveryJson(payloadText);
       const parsed = JSON.parse(cleaned);
-      const validation = validateInstaDeliveryPayload(parsed);
-      if (validation.errors.length) {
-        setImportResult({
-          type: 'error',
-          message: validation.errors.join(' '),
-        });
-        setIsImporting(false);
-        return;
-      }
       const mapped = mapInstaDeliveryPayload(parsed, snapshot.products);
       let order = await createDeliveryOrder(mapped.payload);
       if (mapped.status && mapped.status !== 'Novo pedido') {
@@ -158,7 +138,7 @@ const PainelDeliveryPage = () => {
       setImportResult({
         type: 'success',
         order,
-        warnings: [...(mapped.warnings || []), ...(validation.warnings || [])],
+        warnings: mapped.warnings,
       });
     } catch (error) {
       setImportResult({ type: 'error', message: error.message || 'Falha ao importar pedido.' });
@@ -166,97 +146,6 @@ const PainelDeliveryPage = () => {
       setIsImporting(false);
     }
   };
-
-  const hasImportedOrder = (orderId) => {
-    const id = String(orderId || '').trim();
-    if (!id) return false;
-    return snapshot.orders.some((order) => {
-      if (String(order.externalId || '') === id) return true;
-      if (String(order.observacoes || '').includes(`InstaDelivery order_id: ${id}`)) return true;
-      return false;
-    });
-  };
-
-  const fetchInstaDeliveryInbox = async ({ silent = false } = {}) => {
-    if (!webhookEndpoint) return;
-    if (syncRef.current) return;
-    syncRef.current = true;
-    try {
-      if (!silent) {
-        setAutoSyncStatus('Buscando novos pedidos no webhook...');
-      }
-      const url = new URL(webhookEndpoint);
-      if (storeId) {
-        url.searchParams.set('store', storeId);
-      }
-      if (lastSyncAt) {
-        url.searchParams.set('since', lastSyncAt);
-      }
-      const response = await fetch(url.toString());
-      if (!response.ok) {
-        throw new Error(`Falha ao consultar webhook (${response.status}).`);
-      }
-      const data = await response.json();
-      if (!data.ok) {
-        throw new Error(data.message || 'Webhook nao retornou dados validos.');
-      }
-
-      const rows = Array.isArray(data.data) ? data.data : [];
-      let newestTimestamp = lastSyncAt;
-      let imported = 0;
-
-      for (const row of rows) {
-        if (row.received_at && (!newestTimestamp || row.received_at > newestTimestamp)) {
-          newestTimestamp = row.received_at;
-        }
-        const payload = row.raw_payload || row;
-        if (!payload?.order_id) {
-          continue;
-        }
-        if (hasImportedOrder(payload.order_id)) {
-          continue;
-        }
-        const validation = validateInstaDeliveryPayload(payload);
-        if (validation.errors.length) {
-          continue;
-        }
-        const mapped = mapInstaDeliveryPayload(payload, snapshot.products);
-        let order = await createDeliveryOrder(mapped.payload);
-        if (mapped.status && mapped.status !== 'Novo pedido') {
-          order = await updateOrderStatus(order.id, mapped.status);
-        }
-        imported += 1;
-      }
-
-      if (newestTimestamp && newestTimestamp !== lastSyncAt) {
-        setLastSyncAt(newestTimestamp);
-        if (typeof window !== 'undefined') {
-          window.localStorage.setItem('insta_last_sync_at', newestTimestamp);
-        }
-      }
-
-      if (!silent) {
-        setAutoSyncStatus(
-          imported ? `${imported} pedido(s) importado(s).` : 'Nenhum pedido novo.',
-        );
-      }
-    } catch (error) {
-      if (!silent) {
-        setAutoSyncStatus(error.message || 'Falha ao sincronizar pedidos.');
-      }
-    } finally {
-      syncRef.current = false;
-    }
-  };
-
-  useEffect(() => {
-    if (!autoSyncEnabled || !webhookEndpoint) return undefined;
-    fetchInstaDeliveryInbox({ silent: true });
-    const interval = setInterval(() => {
-      fetchInstaDeliveryInbox({ silent: true });
-    }, 12000);
-    return () => clearInterval(interval);
-  }, [autoSyncEnabled, webhookEndpoint, storeId, lastSyncAt]);
 
   return (
     <ModuleShell
@@ -354,9 +243,6 @@ const PainelDeliveryPage = () => {
               >
                 {savingConfig ? 'Salvando...' : 'Salvar configuracao'}
               </Button>
-              <Button variant="outline" onClick={() => fetchInstaDeliveryInbox({ silent: false })}>
-                Sincronizar agora
-              </Button>
               {suggestedWebhook ? (
                 <Button variant="outline" onClick={() => handleCopy(suggestedWebhook)}>
                   <Copy className="mr-2 h-4 w-4" />
@@ -366,9 +252,6 @@ const PainelDeliveryPage = () => {
             </div>
             {configMessage ? (
               <div className="text-xs text-[var(--layout-text-muted)]">{configMessage}</div>
-            ) : null}
-            {autoSyncStatus ? (
-              <div className="text-xs text-[var(--layout-text-muted)]">{autoSyncStatus}</div>
             ) : null}
           </div>
 
@@ -395,21 +278,6 @@ const PainelDeliveryPage = () => {
               <div>
                 Dica: o webhook precisa ser um endpoint backend que receba o JSON e envie para este painel.
               </div>
-              <div className="flex items-center gap-2">
-                <span>Auto-importacao:</span>
-                <button
-                  type="button"
-                  onClick={() => setAutoSyncEnabled((current) => !current)}
-                  className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] ${
-                    autoSyncEnabled
-                      ? 'bg-emerald-500/20 text-emerald-200'
-                      : 'bg-rose-500/20 text-rose-200'
-                  }`}
-                >
-                  {autoSyncEnabled ? 'Ativa' : 'Pausada'}
-                </button>
-              </div>
-              <div>Ultima sincronizacao: {lastSyncAt || 'Ainda nao sincronizado'}</div>
             </div>
           </div>
         </div>

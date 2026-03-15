@@ -401,8 +401,6 @@ export const createDeliveryOrder = async (userId, payload) => {
     id: `DLV-${numero}`,
     numero,
     origem: payload.origem || 'app',
-    externalId: payload.external_id || null,
-    externalSource: payload.external_source || null,
     clienteId: customer?.id || payload.cliente.id || null,
     cliente: payload.cliente.nome,
     telefone: payload.cliente.telefone || '',

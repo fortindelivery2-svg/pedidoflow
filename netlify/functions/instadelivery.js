@@ -97,66 +97,6 @@ exports.handler = async (event) => {
     };
   }
 
-  if (event.httpMethod === 'GET') {
-    const storeId = event.queryStringParameters?.store
-      ? String(event.queryStringParameters.store)
-      : '';
-    const since = event.queryStringParameters?.since || '';
-
-    const expectedStoreId = process.env.INSTADELIVERY_STORE_ID
-      ? String(process.env.INSTADELIVERY_STORE_ID)
-      : '';
-
-    if (expectedStoreId && storeId && expectedStoreId !== storeId) {
-      return buildResponse(403, {
-        ok: false,
-        message: 'store_id nao autorizado.',
-      });
-    }
-
-    const supabaseUrl = process.env.SUPABASE_URL || '';
-    const supabaseKey =
-      process.env.SUPABASE_SERVICE_ROLE_KEY ||
-      process.env.SUPABASE_SERVICE_KEY ||
-      process.env.SUPABASE_ANON_KEY ||
-      '';
-
-    if (!supabaseUrl || !supabaseKey) {
-      return buildResponse(200, {
-        ok: false,
-        message: 'Supabase nao configurado.',
-        data: [],
-      });
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseKey, {
-      auth: { persistSession: false },
-    });
-    const table = process.env.INSTADELIVERY_TABLE || 'instadelivery_inbox';
-    let query = supabase
-      .from(table)
-      .select('order_id,store_id,status,origem,raw_payload,received_at')
-      .order('received_at', { ascending: true })
-      .limit(25);
-
-    if (storeId) {
-      query = query.eq('store_id', storeId);
-    }
-    if (since) {
-      query = query.gt('received_at', since);
-    }
-
-    const { data, error } = await query;
-    if (error) {
-      return buildResponse(500, { ok: false, message: error.message, data: [] });
-    }
-
-    return buildResponse(200, {
-      ok: true,
-      data: data || [],
-    });
-  }
-
   if (event.httpMethod !== 'POST') {
     return buildResponse(405, { ok: false, message: 'Use POST para enviar pedidos.' });
   }
