@@ -14,6 +14,8 @@ const SuprimentoCaixaModal = ({ isOpen, onClose, caixaId, cashierName, currentBa
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { addSuprimento } = useCaixaMovimentacoes();
   const { toast } = useToast();
+  const baseBalance = parseFloat(displayBalance ?? currentBalance ?? 0);
+  const previewBalance = baseBalance + (parseFloat(valor) || 0);
 
   useEffect(() => {
     if (isOpen) {
@@ -111,6 +113,17 @@ const SuprimentoCaixaModal = ({ isOpen, onClose, caixaId, cashierName, currentBa
                />
              </div>
           </div>
+          <div className="bg-[#232f3e] p-3 rounded-lg flex justify-between items-center text-sm border border-gray-700">
+             <span className="text-gray-400">Saldo após suprimento</span>
+             <span className={`font-bold font-mono ${previewBalance < 0 ? 'text-[#EF4444]' : 'text-[#00d084]'}`}>
+               R$ {previewBalance.toFixed(2)}
+             </span>
+          </div>
+          {previewBalance < 0 && (
+            <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs rounded-lg px-3 py-2">
+              Atenção: o saldo ficará negativo.
+            </div>
+          )}
 
           <div>
              <label className="text-sm text-gray-300 block mb-1">Forma de Pagamento</label>

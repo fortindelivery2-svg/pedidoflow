@@ -10,6 +10,22 @@ export const useSalesHistory = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  const parseLocalDate = (dateStr, endOfDay = false) => {
+    if (!dateStr) return null;
+    const parts = dateStr.split('-').map(Number);
+    if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) return null;
+    const [year, month, day] = parts;
+    return new Date(
+      year,
+      month - 1,
+      day,
+      endOfDay ? 23 : 0,
+      endOfDay ? 59 : 0,
+      endOfDay ? 59 : 0,
+      endOfDay ? 999 : 0
+    );
+  };
+
   // Fetch sales with comprehensive filtering
   const fetchSalesWithFilters = useCallback(async ({ startDate, endDate, searchTerm, tipoVenda, status }) => {
     if (!user) return;
@@ -33,15 +49,18 @@ export const useSalesHistory = () => {
         .order('data_criacao', { ascending: false });
 
       // Date Filters (start of day to end of day)
-      if (startDate) {
-        const start = new Date(startDate);
-        start.setHours(0, 0, 0, 0);
-        query = query.gte('data_criacao', start.toISOString());
-      }
-      if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        query = query.lte('data_criacao', end.toISOString());
+      const start = parseLocalDate(startDate, false);
+      const end = parseLocalDate(endDate, true);
+
+      const startIso = start ? start.toISOString() : null;
+      const endIso = end ? end.toISOString() : null;
+
+      if (startIso && endIso) {
+        query = query.or(`and(data_criacao.gte.${startIso},data_criacao.lte.${endIso}),and(data_hora.gte.${startIso},data_hora.lte.${endIso})`);
+      } else if (startIso) {
+        query = query.or(`data_criacao.gte.${startIso},data_hora.gte.${startIso}`);
+      } else if (endIso) {
+        query = query.or(`data_criacao.lte.${endIso},data_hora.lte.${endIso}`);
       }
 
       // Type Filter

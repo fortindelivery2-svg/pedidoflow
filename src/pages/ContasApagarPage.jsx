@@ -13,6 +13,13 @@ const ContasApagarPage = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [salesTotal, setSalesTotal] = useState(0);
+  const [salesPeriodTotal, setSalesPeriodTotal] = useState(0);
+  const [salesPeriod, setSalesPeriod] = useState('week');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
+  const [loadingSalesTotal, setLoadingSalesTotal] = useState(false);
+  const [loadingSalesPeriod, setLoadingSalesPeriod] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -28,15 +35,23 @@ const ContasApagarPage = () => {
   useEffect(() => {
     if (user) {
       loadContas();
+      loadSalesTotals();
       const subscription = supabase
         .channel('contas_pagar_changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'contas_pagar', filter: `user_id=eq.${user.id}` }, () => {
           loadContas();
+          loadSalesTotals();
         })
         .subscribe();
       return () => { subscription.unsubscribe(); };
     }
   }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      loadSalesPeriodTotal();
+    }
+  }, [user, salesPeriod, customStart, customEnd]);
 
   const loadContas = async () => {
     try {
@@ -54,6 +69,120 @@ const ContasApagarPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const parseLocalDate = (dateStr, endOfDay = false) => {
+    if (!dateStr) return null;
+    const parts = dateStr.split('-').map(Number);
+    if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) return null;
+    const [year, month, day] = parts;
+    return new Date(
+      year,
+      month - 1,
+      day,
+      endOfDay ? 23 : 0,
+      endOfDay ? 59 : 0,
+      endOfDay ? 59 : 0,
+      endOfDay ? 999 : 0
+    );
+  };
+
+  const applySalesDateRange = (query, startIso, endIso) =>
+    query.or(`and(data_criacao.gte.${startIso},data_criacao.lte.${endIso}),and(data_hora.gte.${startIso},data_hora.lte.${endIso})`);
+
+  const loadSalesTotals = async () => {
+    if (!user) return;
+    setLoadingSalesTotal(true);
+    try {
+      const { data, error } = await supabase
+        .from('vendas')
+        .select('total')
+        .eq('user_id', user.id)
+        .eq('status', 'concluido');
+      if (error) throw error;
+
+      const total = (data || []).reduce((acc, curr) => acc + (parseFloat(curr.total) || 0), 0);
+      setSalesTotal(total);
+    } catch (error) {
+      console.error('Erro ao carregar vendas totais:', error);
+    } finally {
+      setLoadingSalesTotal(false);
+    }
+  };
+
+  const loadSalesPeriodTotal = async () => {
+    if (!user) return;
+    setLoadingSalesPeriod(true);
+    try {
+      let start = null;
+      let end = null;
+
+      if (salesPeriod === 'week') {
+        end = new Date();
+        end.setHours(23, 59, 59, 999);
+        start = new Date();
+        start.setDate(start.getDate() - 6);
+        start.setHours(0, 0, 0, 0);
+      } else if (salesPeriod === 'month') {
+        end = new Date();
+        end.setHours(23, 59, 59, 999);
+        start = new Date();
+        start.setDate(start.getDate() - 29);
+        start.setHours(0, 0, 0, 0);
+      } else if (salesPeriod === 'custom') {
+        start = parseLocalDate(customStart, false);
+        end = parseLocalDate(customEnd, true);
+        if (!start || !end) {
+          setSalesPeriodTotal(0);
+          setLoadingSalesPeriod(false);
+          return;
+        }
+      }
+
+      const startIso = start.toISOString();
+      const endIso = end.toISOString();
+
+      let vendasQuery = supabase
+        .from('vendas')
+        .select('total, data_criacao, data_hora')
+        .eq('user_id', user.id)
+        .eq('status', 'concluido');
+
+      vendasQuery = applySalesDateRange(vendasQuery, startIso, endIso);
+
+      const { data, error } = await vendasQuery;
+      if (error) throw error;
+
+      const total = (data || []).reduce((acc, curr) => acc + (parseFloat(curr.total) || 0), 0);
+      setSalesPeriodTotal(total);
+    } catch (error) {
+      console.error('Erro ao carregar vendas por período:', error);
+    } finally {
+      setLoadingSalesPeriod(false);
+    }
+  };
+
+  const getTargetCaixa = async () => {
+    const { data: openCaixa } = await supabase
+      .from('caixas')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('status', 'aberto')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (openCaixa) return openCaixa;
+
+    const { data: latestCaixa } = await supabase
+      .from('caixas')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    return latestCaixa || null;
   };
 
   const handleSubmit = async (e) => {
@@ -101,15 +230,72 @@ const ContasApagarPage = () => {
     }
   };
 
-  const handleMarkAsPaid = async (id) => {
+  const handleMarkAsPaid = async (conta) => {
     try {
-      const { error } = await supabase
+      const now = new Date().toISOString();
+      const valor = parseFloat(conta.valor) || 0;
+
+      const { error: updateError } = await supabase
         .from('contas_pagar')
-        .update({ status: 'pago', data_pagamento: new Date().toISOString() })
-        .eq('id', id);
-      if (error) throw error;
-      toast({ title: 'Conta marcada como paga!' });
+        .update({ status: 'pago', data_pagamento: now })
+        .eq('id', conta.id);
+      if (updateError) throw updateError;
+
+      const caixa = await getTargetCaixa();
+      if (!caixa) {
+        await supabase
+          .from('contas_pagar')
+          .update({ status: 'pendente', data_pagamento: null })
+          .eq('id', conta.id);
+
+        toast({
+          title: 'Caixa não encontrado',
+          description: 'Não foi possível localizar um caixa para registrar a saída.',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      const saldoAnterior = parseFloat(caixa.saldo_atual || 0);
+      const saldoNovo = saldoAnterior - valor;
+
+      const { error: moveError } = await supabase.from('caixa_movimentos').insert([{
+        user_id: user.id,
+        caixa_id: caixa.id,
+        tipo: 'retirada',
+        valor,
+        descricao: `Conta paga: ${conta.descricao}`,
+        motivo: 'conta_pagar',
+        saldo_anterior: saldoAnterior,
+        saldo_novo: saldoNovo,
+        data_movimentacao: now
+      }]);
+
+      if (moveError) throw moveError;
+
+      const { error: rpcError } = await supabase.rpc('decrement_caixa_saldo', {
+        p_caixa_id: caixa.id,
+        p_valor: valor,
+        p_tipo: 'retirada'
+      });
+
+      if (rpcError) {
+        const { error: updateCaixaError } = await supabase
+          .from('caixas')
+          .update({
+            saldo_atual: saldoNovo,
+            total_retiradas: (caixa.total_retiradas || 0) + valor
+          })
+          .eq('id', caixa.id);
+        if (updateCaixaError) throw updateCaixaError;
+      }
+
+      toast({ title: 'Conta marcada como paga e caixa atualizado!' });
     } catch (error) {
+      await supabase
+        .from('contas_pagar')
+        .update({ status: 'pendente', data_pagamento: null })
+        .eq('id', conta.id);
       toast({ title: 'Erro ao atualizar', description: error.message, variant: 'destructive' });
     }
   };
@@ -175,7 +361,7 @@ const ContasApagarPage = () => {
         <p className="text-[var(--layout-text-muted)]">Gestão financeira de saídas</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 mb-8">
         <div className="bg-[var(--layout-surface-2)] p-6 rounded-lg shadow-lg flex items-center justify-between">
           <div>
             <p className="text-[var(--layout-text-muted)] text-sm font-medium uppercase">Total a Pagar</p>
@@ -184,6 +370,62 @@ const ContasApagarPage = () => {
           <div className="p-3 bg-red-500/20 rounded-full">
             <AlertCircle className="w-8 h-8 text-red-500" />
           </div>
+        </div>
+        <div className="bg-[var(--layout-surface-2)] p-6 rounded-lg shadow-lg flex items-center justify-between">
+          <div>
+            <p className="text-[var(--layout-text-muted)] text-sm font-medium uppercase">Vendas Totais</p>
+            <h3 className="text-2xl font-bold text-white mt-1">
+              {loadingSalesTotal ? '...' : `R$ ${salesTotal.toFixed(2)}`}
+            </h3>
+          </div>
+          <div className="p-3 bg-[var(--layout-accent)]/20 rounded-full">
+            <CheckCircle className="w-8 h-8 text-[var(--layout-accent)]" />
+          </div>
+        </div>
+        <div className="bg-[var(--layout-surface-2)] p-6 rounded-lg shadow-lg">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-[var(--layout-text-muted)] text-sm font-medium uppercase">Vendas por Período</p>
+              <h3 className="text-2xl font-bold text-white mt-1">
+                {loadingSalesPeriod ? '...' : `R$ ${salesPeriodTotal.toFixed(2)}`}
+              </h3>
+            </div>
+          </div>
+          <div className="flex gap-2 mb-3 flex-wrap">
+            {[
+              { key: 'week', label: '1 Semana' },
+              { key: 'month', label: '1 Mês' },
+              { key: 'custom', label: 'Personalizado' }
+            ].map((opt) => (
+              <button
+                key={opt.key}
+                onClick={() => setSalesPeriod(opt.key)}
+                className={`px-3 py-1 rounded text-xs font-semibold border ${
+                  salesPeriod === opt.key
+                    ? 'bg-[var(--layout-accent)] text-white border-transparent'
+                    : 'bg-transparent border-[var(--layout-border)] text-[var(--layout-text-muted)] hover:text-white hover:bg-[var(--layout-bg)]'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {salesPeriod === 'custom' && (
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="date"
+                value={customStart}
+                onChange={(e) => setCustomStart(e.target.value)}
+                className="w-full bg-[var(--layout-bg)] border border-[var(--layout-border)] rounded-lg px-2 py-1 text-white text-xs focus:border-[var(--layout-accent)] focus:outline-none"
+              />
+              <input
+                type="date"
+                value={customEnd}
+                onChange={(e) => setCustomEnd(e.target.value)}
+                className="w-full bg-[var(--layout-bg)] border border-[var(--layout-border)] rounded-lg px-2 py-1 text-white text-xs focus:border-[var(--layout-accent)] focus:outline-none"
+              />
+            </div>
+          )}
         </div>
         <div className="bg-[var(--layout-surface-2)] p-6 rounded-lg shadow-lg flex items-center justify-between">
           <div>
@@ -281,7 +523,7 @@ const ContasApagarPage = () => {
                     <div className="flex justify-end gap-2">
                       {conta.status !== 'pago' && (
                         <button 
-                          onClick={() => handleMarkAsPaid(conta.id)}
+                          onClick={() => handleMarkAsPaid(conta)}
                           title="Marcar como Pago"
                           className="p-1 text-[var(--layout-accent)] hover:bg-[var(--layout-accent)]/10 rounded transition-colors"
                         >

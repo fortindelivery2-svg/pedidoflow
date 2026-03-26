@@ -183,7 +183,7 @@ const SalesHistoryModal = ({ isOpen, onClose }) => {
                     >
                       <td className="py-4 px-6 text-white font-mono">#{sale.numero_venda || String(sale.id).slice(0, 8)}</td>
                       <td className="py-4 px-6 text-[var(--layout-text-muted)] text-sm">
-                        {format(new Date(sale.data_criacao), 'HH:mm')}
+                        {format(new Date(sale.data_criacao || sale.data_hora), 'HH:mm')}
                       </td>
                       <td className="py-4 px-6">
                         <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold ${

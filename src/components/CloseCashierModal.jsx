@@ -32,6 +32,7 @@ const CloseCashierModal = ({ isOpen, onClose, onConfirm, session }) => {
     (Number(opsSummary.suprimentos) || 0) -
     (Number(opsSummary.retiradas) || 0);
   const diferenca = (parseFloat(saldoFinal) || 0) - saldoEsperadoDia;
+  const saldoFinalPreview = parseFloat(saldoFinal) || 0;
 
   const normalizeMethod = (method) => {
     const raw = (method || '').toString().trim().toLowerCase();
@@ -52,6 +53,8 @@ const CloseCashierModal = ({ isOpen, onClose, onConfirm, session }) => {
       const start = new Date();
       start.setHours(0, 0, 0, 0);
       const end = new Date();
+      const startIso = start.toISOString();
+      const endIso = end.toISOString();
 
       const paymentsBase = { dinheiro: 0, pix: 0, debito: 0, credito: 0, fiado: 0, consumo: 0 };
 
@@ -60,22 +63,26 @@ const CloseCashierModal = ({ isOpen, onClose, onConfirm, session }) => {
           .from('venda_pagamentos')
           .select('id, venda_id, forma_pagamento, valor, data_pagamento')
           .eq('user_id', user.id)
-          .gte('data_pagamento', start.toISOString())
-          .lte('data_pagamento', end.toISOString()),
-        supabase
-          .from('vendas')
-          .select('id, total, forma_pagamento, data_criacao, status')
-          .eq('user_id', user.id)
-          .eq('status', 'concluido')
-          .gte('data_criacao', start.toISOString())
-          .lte('data_criacao', end.toISOString()),
+          .gte('data_pagamento', startIso)
+          .lte('data_pagamento', endIso),
+        (() => {
+          let vendasQuery = supabase
+            .from('vendas')
+            .select('id, total, forma_pagamento, data_criacao, data_hora, status')
+            .eq('user_id', user.id)
+            .eq('status', 'concluido');
+
+          vendasQuery = vendasQuery.or(`and(data_criacao.gte.${startIso},data_criacao.lte.${endIso}),and(data_hora.gte.${startIso},data_hora.lte.${endIso})`);
+
+          return vendasQuery;
+        })(),
         supabase
           .from('caixa_movimentos')
           .select('tipo, valor, data_movimentacao')
           .eq('user_id', user.id)
           .in('tipo', ['suprimento', 'retirada'])
-          .gte('data_movimentacao', start.toISOString())
-          .lte('data_movimentacao', end.toISOString())
+          .gte('data_movimentacao', startIso)
+          .lte('data_movimentacao', endIso)
       ]);
 
       const pagamentos = pagamentosRes.data || [];
@@ -211,6 +218,17 @@ const CloseCashierModal = ({ isOpen, onClose, onConfirm, session }) => {
                 className="w-full bg-[#2d3e52] border border-gray-600 rounded px-3 py-2 text-white focus:border-[#00d084] focus:outline-none text-lg font-mono"
               />
             </div>
+            <div className="bg-[#2d3e52] rounded p-3 text-sm border border-gray-600 flex justify-between items-center">
+              <span className="text-gray-400">Saldo após fechamento</span>
+              <span className={`font-mono font-bold ${saldoFinalPreview < 0 ? 'text-[#EF4444]' : 'text-white'}`}>
+                R$ {saldoFinalPreview.toFixed(2)}
+              </span>
+            </div>
+            {saldoFinalPreview < 0 && (
+              <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs rounded-lg px-3 py-2">
+                Atenção: o saldo ficará negativo.
+              </div>
+            )}
 
             <div className={`text-center p-2 rounded ${diferenca >= 0 ? 'bg-[#00d084]/10 text-[#00d084]' : 'bg-red-500/10 text-red-500'}`}>
               <span className="text-xs font-bold uppercase block">Diferença</span>

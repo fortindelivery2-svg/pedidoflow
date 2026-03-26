@@ -13,6 +13,8 @@ const RetiradaCaixaModal = ({ isOpen, onClose, caixaId, cashierName, currentBala
   const [motivo, setMotivo] = useState('Depósito Bancário');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [realTimeBalance, setRealTimeBalance] = useState(currentBalance);
+  const baseBalance = parseFloat(displayBalance ?? realTimeBalance ?? 0);
+  const previewBalance = baseBalance - (parseFloat(valor) || 0);
   
   const { addRetirada, getCaixaSaldo } = useCaixaMovimentacoes();
   const { toast } = useToast();
@@ -117,6 +119,17 @@ const RetiradaCaixaModal = ({ isOpen, onClose, caixaId, cashierName, currentBala
                />
              </div>
           </div>
+          <div className="bg-[#232f3e] p-3 rounded-lg flex justify-between items-center text-sm border border-gray-700">
+             <span className="text-gray-400">Saldo após retirada</span>
+             <span className={`font-bold font-mono ${previewBalance < 0 ? 'text-[#EF4444]' : 'text-[#00d084]'}`}>
+               R$ {previewBalance.toFixed(2)}
+             </span>
+          </div>
+          {previewBalance < 0 && (
+            <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs rounded-lg px-3 py-2">
+              Atenção: o saldo ficará negativo.
+            </div>
+          )}
 
           <div>
              <label className="text-sm text-gray-300 block mb-1">Motivo da Retirada</label>

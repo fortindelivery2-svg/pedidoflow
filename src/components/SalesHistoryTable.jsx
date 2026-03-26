@@ -63,7 +63,7 @@ const SalesHistoryTable = ({ sales, onEdit, onDelete }) => {
                       #{sale.numero_venda || String(sale.id).slice(0, 8)}
                     </td>
                     <td className="py-4 px-4 text-[var(--layout-text-muted)] text-sm">
-                      {format(new Date(sale.data_criacao), 'dd/MM/yyyy HH:mm')}
+                      {format(new Date(sale.data_criacao || sale.data_hora), 'dd/MM/yyyy HH:mm')}
                     </td>
                     <td className="py-4 px-4">
                       <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold ${

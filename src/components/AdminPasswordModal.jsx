@@ -4,7 +4,7 @@ import { Lock, AlertTriangle, X, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { validateAdminPassword } from '@/utils/passwordValidation';
 
-const AdminPasswordModal = ({ isOpen, onClose, onConfirm, actionType = 'edit' }) => {
+const AdminPasswordModal = ({ isOpen, onClose, onConfirm, actionType = 'edit', actionLabel }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [attempts, setAttempts] = useState(3);
@@ -95,7 +95,7 @@ const AdminPasswordModal = ({ isOpen, onClose, onConfirm, actionType = 'edit' })
                 Esta ação requer senha de administrador.
               </p>
               <p className="text-xs text-gray-500 mt-1 uppercase font-bold">
-                {actionType === 'cancel' ? 'Cancelar Item' : 'Editar Item'}
+                {actionLabel || (actionType === 'cancel' ? 'Cancelar Item' : 'Editar Item')}
               </p>
             </div>
 

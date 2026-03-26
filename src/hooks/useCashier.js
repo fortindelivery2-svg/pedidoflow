@@ -9,6 +9,50 @@ export const useCashier = () => {
   const [cashierSession, setCashierSession] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  const ensureCaixaRecord = useCallback(async () => {
+    if (!user) return null;
+    try {
+      const { data: openCaixa } = await supabase
+        .from('caixas')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('status', 'aberto')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (openCaixa) return openCaixa;
+
+      const { data: latestCaixa } = await supabase
+        .from('caixas')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (latestCaixa) return latestCaixa;
+
+      const { data: newCaixa, error: createError } = await supabase
+        .from('caixas')
+        .insert([{
+          user_id: user.id,
+          nome: 'Caixa Principal',
+          saldo_atual: 0,
+          saldo_inicial: 0,
+          status: 'fechado'
+        }])
+        .select()
+        .single();
+
+      if (createError) throw createError;
+      return newCaixa;
+    } catch (err) {
+      console.error('Error ensuring caixa record:', err);
+      return null;
+    }
+  }, [user]);
+
   const getCurrentCashierSession = useCallback(async () => {
     if (!user) return;
     setLoading(true);
@@ -71,6 +115,18 @@ export const useCashier = () => {
       if (error) throw error;
       if (!data) throw new Error("Falha ao abrir caixa: Nenhum dado retornado.");
 
+      const caixa = await ensureCaixaRecord();
+      if (caixa) {
+        await supabase
+          .from('caixas')
+          .update({
+            status: 'aberto',
+            saldo_inicial: saldoInicial,
+            saldo_atual: saldoInicial
+          })
+          .eq('id', caixa.id);
+      }
+
       setCashierSession(data);
       toast({
         title: `Caixa aberto por ${data.funcionario?.nome || 'Funcionário'}`,
@@ -112,6 +168,17 @@ export const useCashier = () => {
       if (!data) throw new Error("Falha ao fechar caixa: Nenhum dado retornado.");
 
       const employeeName = data.funcionario?.nome || cashierSession.funcionario?.nome || 'Funcionário';
+      const caixa = await ensureCaixaRecord();
+      if (caixa) {
+        await supabase
+          .from('caixas')
+          .update({
+            status: 'fechado',
+            saldo_atual: saldoFinal
+          })
+          .eq('id', caixa.id);
+      }
+
       setCashierSession(null);
       toast({
         title: `Caixa fechado por ${employeeName}`,

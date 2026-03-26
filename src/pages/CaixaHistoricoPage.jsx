@@ -1,18 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet';
-import { Calendar, Filter, Lock, RefreshCw, Unlock } from 'lucide-react';
+import { Calendar, Filter, Lock, RefreshCw, Unlock, Trash2 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/components/ui/use-toast';
+import AdminPasswordModal from '@/components/AdminPasswordModal';
 
 const CaixaHistoricoPage = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [startDate, setStartDate] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
   const [loading, setLoading] = useState(false);
   const [movimentacoes, setMovimentacoes] = useState([]);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
   const totalAberturas = movimentacoes.filter((m) => m.tipo === 'abertura').length;
@@ -43,6 +49,61 @@ const CaixaHistoricoPage = () => {
       console.error('Erro ao carregar movimentações do caixa:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const requestDelete = (mov) => {
+    const isCurrentOpen =
+      mov.tipo === 'abertura' &&
+      movimentacoes.length > 0 &&
+      movimentacoes[0]?.tipo === 'abertura' &&
+      movimentacoes[0]?.id === mov.id;
+
+    if (isCurrentOpen) {
+      toast({
+        title: 'Ação não permitida',
+        description: 'Feche o caixa antes de apagar a última abertura.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (!window.confirm(`Deseja realmente excluir ${mov.tipo}? Esta ação é irreversível.`)) {
+      return;
+    }
+
+    setPendingDelete(mov);
+    setPasswordModalOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!pendingDelete || !user) return;
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('caixa_movimentacoes')
+        .delete()
+        .eq('id', pendingDelete.id)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Movimentação excluída',
+        className: 'bg-[#EF4444] text-white border-none'
+      });
+
+      setPendingDelete(null);
+      await fetchCaixaMovimentacoes();
+    } catch (err) {
+      console.error('Erro ao excluir movimentações do caixa:', err);
+      toast({
+        title: 'Erro ao excluir',
+        description: err.message || 'Não foi possível excluir a movimentação.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -140,6 +201,7 @@ const CaixaHistoricoPage = () => {
                   <th className="px-6 py-4 text-right">Saldo Inicial</th>
                   <th className="px-6 py-4 text-right">Saldo Final</th>
                   <th className="px-6 py-4 text-left">Observações</th>
+                  <th className="px-6 py-4 text-center">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-700">
@@ -172,6 +234,16 @@ const CaixaHistoricoPage = () => {
                       <td className="px-6 py-4 text-[var(--layout-text-muted)] max-w-xs truncate" title={mov.observacoes}>
                         {mov.observacoes || '-'}
                       </td>
+                      <td className="px-6 py-4 text-center">
+                        <button
+                          onClick={() => requestDelete(mov)}
+                          className="inline-flex items-center justify-center h-8 w-8 rounded border border-red-500/40 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+                          title={`Excluir ${mov.tipo}`}
+                          disabled={isDeleting}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -180,6 +252,14 @@ const CaixaHistoricoPage = () => {
           </div>
         </div>
       )}
+
+      <AdminPasswordModal
+        isOpen={passwordModalOpen}
+        onClose={() => setPasswordModalOpen(false)}
+        onConfirm={handleDeleteConfirm}
+        actionType="cancel"
+        actionLabel={pendingDelete ? `Excluir ${pendingDelete.tipo}` : 'Excluir movimentação'}
+      />
     </div>
   );
 };

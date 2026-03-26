@@ -15,8 +15,9 @@ export const useGraficosRelatorios = (vendas, itens) => {
     // 1. Vendas por Dia
     const vendasPorDiaMap = {};
     vendas.forEach(venda => {
-      if (!venda.data_hora) return;
-      const dateKey = format(parseISO(venda.data_hora), 'dd/MM', { locale: ptBR });
+      const vendaDate = venda.data_hora || venda.data_criacao;
+      if (!vendaDate) return;
+      const dateKey = format(parseISO(vendaDate), 'dd/MM', { locale: ptBR });
       vendasPorDiaMap[dateKey] = (vendasPorDiaMap[dateKey] || 0) + (Number(venda.total) || 0);
     });
 
@@ -24,8 +25,9 @@ export const useGraficosRelatorios = (vendas, itens) => {
     // To do it properly: group by full date YYYY-MM-DD then format for display
     const vendasPorDiaRaw = {};
     vendas.forEach(venda => {
-        if (!venda.data_hora) return;
-        const fullDate = venda.data_hora.split('T')[0]; // YYYY-MM-DD
+        const vendaDate = venda.data_hora || venda.data_criacao;
+        if (!vendaDate) return;
+        const fullDate = vendaDate.split('T')[0]; // YYYY-MM-DD
         vendasPorDiaRaw[fullDate] = (vendasPorDiaRaw[fullDate] || 0) + (Number(venda.total) || 0);
     });
     

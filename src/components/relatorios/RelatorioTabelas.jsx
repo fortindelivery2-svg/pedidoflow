@@ -111,7 +111,7 @@ const RelatorioTabelas = ({ maisVendidos, menosVendidos, historicoVendas }) => {
                 paginatedHistory.map((venda) => (
                   <tr key={venda.id} className="hover:bg-[var(--layout-bg)]/60 transition-colors">
                     <td className="py-3 px-4 text-[var(--layout-text-muted)]">
-                      {new Date(venda.data_hora).toLocaleString('pt-BR')}
+                      {new Date(venda.data_hora || venda.data_criacao).toLocaleString('pt-BR')}
                     </td>
                     <td className="py-3 px-4 text-white font-medium">{venda.cliente_nome}</td>
                     <td className="py-3 px-4 text-[var(--layout-text-muted)]">{venda.vendedor_nome}</td>

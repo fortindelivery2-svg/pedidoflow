@@ -219,7 +219,8 @@ const PaymentModal = ({
           motoboy_id: finalData.motoboy_id || null,
           endereco_entrega: finalData.endereco_entrega || null,
           observacoes_entrega: finalData.observacoes_entrega || null,
-          data_hora: new Date().toISOString()
+          data_hora: new Date().toISOString(),
+          data_criacao: new Date().toISOString()
         })
         .select()
         .single();

@@ -12,6 +12,21 @@ const CashSummaryModal = ({ isOpen, onClose, caixaId }) => {
   const { ensureCaixaExists } = useCaixaMovimentacoes();
   const [currentCaixaId, setCurrentCaixaId] = useState(caixaId);
   const [loading, setLoading] = useState(true);
+
+  const normalizeMethod = (method) => {
+    const raw = (method || '').toString().trim().toLowerCase();
+    const clean = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (clean.includes('dinheiro')) return 'dinheiro';
+    if (clean.includes('pix')) return 'pix';
+    if (clean.includes('debito')) return 'debito';
+    if (clean.includes('credito')) return 'credito';
+    if (clean.includes('fiado')) return 'fiado';
+    if (clean.includes('consumo')) return 'consumo';
+    return null;
+  };
+
+  const applySalesDateRange = (query, startIso, endIso) =>
+    query.or(`and(data_criacao.gte.${startIso},data_criacao.lte.${endIso}),and(data_hora.gte.${startIso},data_hora.lte.${endIso})`);
   
   // State for all summary data
   const [summaryData, setSummaryData] = useState({
@@ -54,6 +69,13 @@ const CashSummaryModal = ({ isOpen, onClose, caixaId }) => {
         return;
       }
 
+      const todayStart = new Date();
+      todayStart.setHours(0,0,0,0);
+      const todayEnd = new Date();
+      todayEnd.setHours(23,59,59,999);
+      const startIso = todayStart.toISOString();
+      const endIso = todayEnd.toISOString();
+
       // 2. Fetch Caixa Details (Saldo Inicial)
       const { data: caixaData } = await supabase
         .from('caixas')
@@ -61,15 +83,22 @@ const CashSummaryModal = ({ isOpen, onClose, caixaId }) => {
         .eq('id', cid)
         .single();
 
-      const saldoInicial = parseFloat(caixaData?.saldo_inicial || 0);
+      const { data: aberturaData } = await supabase
+        .from('caixa_movimentacoes')
+        .select('saldo_inicial, data_hora')
+        .eq('user_id', user.id)
+        .eq('tipo', 'abertura')
+        .gte('data_hora', startIso)
+        .lte('data_hora', endIso)
+        .order('data_hora', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const saldoInicial = parseFloat((aberturaData?.saldo_inicial ?? caixaData?.saldo_inicial) || 0);
 
       // 3. Fetch Sales Data (Today)
-      const todayStart = new Date();
-      todayStart.setHours(0,0,0,0);
-      const todayEnd = new Date();
-      todayEnd.setHours(23,59,59,999);
 
-      const { data: vendas, error: vendasError } = await supabase
+      let vendasQuery = supabase
         .from('vendas')
         .select(`
           id, 
@@ -81,9 +110,11 @@ const CashSummaryModal = ({ isOpen, onClose, caixaId }) => {
           )
         `)
         .eq('user_id', user.id)
-        .gte('data_criacao', todayStart.toISOString())
-        .lte('data_criacao', todayEnd.toISOString())
         .eq('status', 'concluido');
+
+      vendasQuery = applySalesDateRange(vendasQuery, startIso, endIso);
+
+      const { data: vendas, error: vendasError } = await vendasQuery;
 
       if (vendasError) console.error("Error fetching vendas:", vendasError);
 
@@ -102,15 +133,29 @@ const CashSummaryModal = ({ isOpen, onClose, caixaId }) => {
             totalCost += (Number(item.valor_custo || 0) * Number(item.quantidade || 0));
           });
         }
+      });
 
-        // Aggregate payments
-        const method = venda.forma_pagamento?.toLowerCase() || 'outros';
-        if (method.includes('dinheiro')) payments.dinheiro += Number(venda.total);
-        else if (method.includes('pix')) payments.pix += Number(venda.total);
-        else if (method.includes('débito') || method.includes('debito')) payments.debito += Number(venda.total);
-        else if (method.includes('crédito') || method.includes('credito')) payments.credito += Number(venda.total);
-        else if (method.includes('fiado')) payments.fiado += Number(venda.total);
-        else if (method.includes('consumo')) payments.consumo += Number(venda.total);
+      const { data: pagamentos } = await supabase
+        .from('venda_pagamentos')
+        .select('venda_id, forma_pagamento, valor, data_pagamento')
+        .eq('user_id', user.id)
+        .gte('data_pagamento', startIso)
+        .lte('data_pagamento', endIso);
+
+      const paidSaleIds = new Set();
+
+      (pagamentos || []).forEach((p) => {
+        if (p?.venda_id) paidSaleIds.add(p.venda_id);
+        const key = normalizeMethod(p?.forma_pagamento);
+        if (!key) return;
+        payments[key] += Number(p?.valor || 0);
+      });
+
+      vendas?.forEach((v) => {
+        if (paidSaleIds.has(v.id)) return;
+        const key = normalizeMethod(v?.forma_pagamento);
+        if (!key) return;
+        payments[key] += Number(v?.total || 0);
       });
 
       // 4. Fetch Movements (Suprimentos/Retiradas)
@@ -118,6 +163,9 @@ const CashSummaryModal = ({ isOpen, onClose, caixaId }) => {
         .from('caixa_movimentos')
         .select('*')
         .eq('caixa_id', cid)
+        .eq('user_id', user.id)
+        .gte('data_movimentacao', startIso)
+        .lte('data_movimentacao', endIso)
         .order('data_movimentacao', { ascending: false });
 
       if (movError) console.error("Error fetching movimentos:", movError);

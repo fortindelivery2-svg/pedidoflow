@@ -67,6 +67,50 @@ export const THEMES = [
       border: '#3a2a5c',
     },
   },
+  {
+    key: 'graphite',
+    name: 'Graphite Aqua',
+    description: 'Grafite profundo com acento aqua elegante.',
+    preview: {
+      accent: '#4dd0e1',
+      bg: '#0f1115',
+      surface: '#141a22',
+      border: '#263142',
+    },
+  },
+  {
+    key: 'rose',
+    name: 'Rose Noir',
+    description: 'Fundo escuro com rose sofisticado.',
+    preview: {
+      accent: '#f472b6',
+      bg: '#16131a',
+      surface: '#1b1722',
+      border: '#3a2e43',
+    },
+  },
+  {
+    key: 'sage',
+    name: 'Sage Stone',
+    description: 'Verdes suaves com tom mineral.',
+    preview: {
+      accent: '#a3b18a',
+      bg: '#141714',
+      surface: '#191d19',
+      border: '#323a32',
+    },
+  },
+  {
+    key: 'copper',
+    name: 'Copper Night',
+    description: 'Cobre moderno em base noturna.',
+    preview: {
+      accent: '#e07a5f',
+      bg: '#1a1411',
+      surface: '#201714',
+      border: '#3b2d26',
+    },
+  },
 ];
 
 export const getStoredTheme = () => {

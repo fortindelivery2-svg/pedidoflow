@@ -19,11 +19,13 @@ export const useRelatorioDashboard = (startDate, endDate) => {
       setError(null);
 
       // Adjust date range for query (start of day to end of day)
-      const start = startDate ? `${startDate}T00:00:00` : new Date(0).toISOString();
-      const end = endDate ? `${endDate}T23:59:59` : new Date().toISOString();
+      const start = startDate ? new Date(`${startDate}T00:00:00`) : new Date(0);
+      const end = endDate ? new Date(`${endDate}T23:59:59`) : new Date();
+      const startIso = start.toISOString();
+      const endIso = end.toISOString();
 
       // Fetch Vendas
-      const { data: vendasData, error: vendasError } = await supabase
+      let vendasQuery = supabase
         .from('vendas')
         .select(`
           *,
@@ -31,8 +33,11 @@ export const useRelatorioDashboard = (startDate, endDate) => {
           vendedor:vendedor_id (nome)
         `)
         .eq('user_id', user.id)
-        .gte('data_hora', start)
-        .lte('data_hora', end)
+        .eq('status', 'concluido');
+
+      vendasQuery = vendasQuery.or(`and(data_criacao.gte.${startIso},data_criacao.lte.${endIso}),and(data_hora.gte.${startIso},data_hora.lte.${endIso})`);
+
+      const { data: vendasData, error: vendasError } = await vendasQuery
         .order('data_hora', { ascending: false });
 
       if (vendasError) throw vendasError;
@@ -124,6 +129,7 @@ export const useRelatorioDashboard = (startDate, endDate) => {
       const custoVenda = vendaItens.reduce((acc, i) => acc + ((Number(i.valor_custo) || 0) * (Number(i.quantidade) || 0)), 0);
       return {
         ...venda,
+        data_hora: venda.data_hora || venda.data_criacao,
         lucro: (Number(venda.total) || 0) - custoVenda,
         cliente_nome: venda.cliente?.nome || 'Consumidor Final',
         vendedor_nome: venda.vendedor?.nome || 'N/A'

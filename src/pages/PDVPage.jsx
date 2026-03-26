@@ -81,6 +81,7 @@ const PDVPage = () => {
     totals.net = totals.sales + totals.supplies - totals.withdrawals;
     return totals;
   }, [movimentacoes]);
+  const todayExpectedBalance = (Number(cashierSession?.saldo_inicial) || 0) + todayTotals.net;
 
   useEffect(() => {
     if (user) {
@@ -410,7 +411,9 @@ const PDVPage = () => {
         motoboy_id: finalData.motoboy_id || null,
         endereco_entrega: finalData.endereco_entrega || null,
         observacoes_entrega: finalData.observacoes_entrega || null,
-        vendedor_id: finalData.vendedor_id || null 
+        vendedor_id: finalData.vendedor_id || null,
+        data_hora: new Date().toISOString(),
+        data_criacao: new Date().toISOString()
       };
 
       let vendaData = null;
@@ -812,7 +815,33 @@ const PDVPage = () => {
                           {item.tipo === 'combo' && <span className="ml-2 text-[10px] bg-blue-900 text-blue-200 px-1.5 py-0.5 rounded font-bold uppercase">COMBO</span>}
                         </td>
                         <td className="py-4 px-4 text-center">
-                          <input type="number" min="1" value={item.quantidade} onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)} className="w-16 bg-[var(--layout-bg)] border border-[var(--layout-border)] rounded px-2 py-1 text-white text-center font-bold focus:border-[#3B82F6] outline-none" onClick={(e) => e.stopPropagation()} />
+                          <div className="inline-flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); updateQuantity(index, item.quantidade - 1); }}
+                              className="h-8 w-8 rounded border border-[var(--layout-border)] text-white hover:bg-[var(--layout-border)] disabled:opacity-50"
+                              disabled={item.quantidade <= 1}
+                              aria-label="Diminuir quantidade"
+                            >
+                              -
+                            </button>
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.quantidade}
+                              onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
+                              className="w-16 bg-[var(--layout-bg)] border border-[var(--layout-border)] rounded px-2 py-1 text-white text-center font-bold focus:border-[#3B82F6] outline-none"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); updateQuantity(index, item.quantidade + 1); }}
+                              className="h-8 w-8 rounded border border-[var(--layout-border)] text-white hover:bg-[var(--layout-border)]"
+                              aria-label="Aumentar quantidade"
+                            >
+                              +
+                            </button>
+                          </div>
                         </td>
                         <td className="py-4 px-4 text-right text-[var(--layout-accent)] font-bold text-sm">R$ {item.total.toFixed(2)}</td>
                         <td className="py-4 px-4 text-center"> 
@@ -905,7 +934,7 @@ const PDVPage = () => {
         caixaId={activeCaixaId}
         cashierName={currentEmployee?.nome}
         currentBalance={caixaSaldo}
-        displayBalance={todayTotals.net}
+        displayBalance={todayExpectedBalance}
         onSuccess={handleRefreshMovimentacoes}
       />
       <RetiradaCaixaModal 
@@ -914,7 +943,7 @@ const PDVPage = () => {
         caixaId={activeCaixaId}
         cashierName={currentEmployee?.nome}
         currentBalance={caixaSaldo}
-        displayBalance={todayTotals.net}
+        displayBalance={todayExpectedBalance}
         onSuccess={handleRefreshMovimentacoes}
       />
 

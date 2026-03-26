@@ -86,6 +86,54 @@
   --layout-scrollbar-hover: #3a2a5c;
 }
 
+[data-theme='graphite'] {
+  --layout-bg: #0f1115;
+  --layout-surface: #0f1115;
+  --layout-surface-2: #141a22;
+  --layout-border: #263142;
+  --layout-accent: #4dd0e1;
+  --layout-accent-strong: #22b8cf;
+  --layout-text-muted: #9aa6b2;
+  --layout-scrollbar: #1b2230;
+  --layout-scrollbar-hover: #2a3647;
+}
+
+[data-theme='rose'] {
+  --layout-bg: #16131a;
+  --layout-surface: #16131a;
+  --layout-surface-2: #1b1722;
+  --layout-border: #3a2e43;
+  --layout-accent: #f472b6;
+  --layout-accent-strong: #ec4899;
+  --layout-text-muted: #c3b1cc;
+  --layout-scrollbar: #221a2c;
+  --layout-scrollbar-hover: #32243d;
+}
+
+[data-theme='sage'] {
+  --layout-bg: #141714;
+  --layout-surface: #141714;
+  --layout-surface-2: #191d19;
+  --layout-border: #323a32;
+  --layout-accent: #a3b18a;
+  --layout-accent-strong: #8f9f76;
+  --layout-text-muted: #b1b9aa;
+  --layout-scrollbar: #1f2520;
+  --layout-scrollbar-hover: #2c332c;
+}
+
+[data-theme='copper'] {
+  --layout-bg: #1a1411;
+  --layout-surface: #1a1411;
+  --layout-surface-2: #201714;
+  --layout-border: #3b2d26;
+  --layout-accent: #e07a5f;
+  --layout-accent-strong: #d16a50;
+  --layout-text-muted: #d5b2a4;
+  --layout-scrollbar: #241a16;
+  --layout-scrollbar-hover: #32241e;
+}
+
 body {
   background: var(--layout-bg);
   color: #fff;
